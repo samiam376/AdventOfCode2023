@@ -2,4 +2,4 @@
  (public_names AdventOfCode2023 Day1 Day2)
  (names Main Day1 Day2)
   (flags (:standard -w -32))
- (libraries AdventOfCode2023 base stdio core str))
+ (libraries base stdio core str))
