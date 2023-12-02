@@ -85,6 +85,6 @@ let read_file file =
   aux file []
 ;;
 
-let file = In_channel.create "data/One.txt" in
+let file = In_channel.create "data/1.txt" in
 let lines = read_file file in
 lines |> List.map ~f:extract_digits |> List.fold ~init:0 ~f:( + ) |> printf "Sum: %d\n"
