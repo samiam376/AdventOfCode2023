@@ -57,6 +57,20 @@ let is_valid_game reveals ~red ~green ~blue =
   List.for_all reveals ~f:(fun r -> is_valid_reveal r ~red ~green ~blue)
 ;;
 
+let calculate_power reveals =
+  let empty_reveal = { red = 0; green = 0; blue = 0 } in
+  let bag =
+    List.fold reveals ~init:empty_reveal ~f:(fun acc reveal ->
+      { red = max acc.red reveal.red
+      ; green = max acc.green reveal.green
+      ; blue = max acc.blue reveal.blue
+      })
+  in
+  let power = bag.red * bag.green * bag.blue in
+  (* printf "red: %d, green: %d, blue: %d, power: %d\n" bag.red bag.green bag.blue power; *)
+  power
+;;
+
 let parse_reveal s =
   let colors = String.split ~on:',' s in
   let parsed_colors =
@@ -73,10 +87,20 @@ let parse_game s =
   game, reveals
 ;;
 
-let file = In_channel.read_lines "data/2a.txt" in
-let games = List.map file ~f:parse_game in
-let valid_games =
-  List.filter games ~f:(fun game -> is_valid_game (snd game) ~red:12 ~blue:14 ~green:13)
-in
-let total = List.fold valid_games ~init:0 ~f:(fun acc (game, _) -> acc + game) in
-printf "%d\n" total
+(* let _part1 = *)
+(*   let file = In_channel.read_lines "data/2a.txt" in *)
+(*   let games = List.map file ~f:parse_game in *)
+(*   let valid_games = *)
+(*     List.filter games ~f:(fun game -> is_valid_game (snd game) ~red:12 ~blue:14 ~green:13) *)
+(*   in *)
+(*   let total = List.fold valid_games ~init:0 ~f:(fun acc (game, _) -> acc + game) in *)
+(*   printf "%d\n" total *)
+(* ;; *)
+
+let _part2 =
+  let file = In_channel.read_lines "data/2a.txt" in
+  let games = List.map file ~f:parse_game in
+  let powers = List.map games ~f:(fun (_, reveals) -> calculate_power reveals) in
+  let total = List.fold powers ~init:0 ~f:( + ) in
+  printf "%d\n" total
+;;
