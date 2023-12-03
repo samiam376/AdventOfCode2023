@@ -1,38 +1,83 @@
 open Core
+open Angstrom
 
-let capture_game s =
-  let regex_pattern = Str.regexp {|\(Game\([0-9]+\)\):|} in
-  if Str.string_match regex_pattern s 0
-  then (
-    let game = Str.matched_group 2 s in
-    let remaining = Str.global_replace regex_pattern "" s in
-    Int.of_string game, remaining)
-  else raise (Failure "no match game")
-;;
+(* let capture_game s = *)
+(*   let regex_pattern = Str.regexp {|\(Game\([0-9]+\)\):|} in *)
+(*   if Str.string_match regex_pattern s 0 *)
+(*   then ( *)
+(*     let game = Str.matched_group 2 s in *)
+(*     let remaining = Str.global_replace regex_pattern "" s in *)
+(*     Int.of_string game, remaining) *)
+(*   else raise (Failure "no match game") *)
+(* ;; *)
 
 type color =
   | Red of int
   | Green of int
   | Blue of int
 
-let capture_color_count s =
-  let pattern = Str.regexp {|\([0-9]+\)\([a-z]+\)|} in
-  if Str.string_match pattern s 0
-  then (
-    let count = Str.matched_group 1 s in
-    let color = Str.matched_group 2 s in
-    count, color)
-  else raise (Failure "no color count match")
+let ws = skip_while Char.is_whitespace
+let int = take_while1 Char.is_digit >>| Int.of_string
+
+let color_parser : color Angstrom.t =
+  ws *> int
+  <* ws
+  >>= fun i ->
+  string "red" *> return (Red i)
+  <|> string "green" *> return (Green i)
+  <|> string "blue" *> return (Blue i)
+  <* ws
 ;;
 
-let parse_color_count (count, color) =
-  let count = Int.of_string count in
-  match color with
-  | "red" -> Red count
-  | "green" -> Green count
-  | "blue" -> Blue count
-  | _ -> raise (Failure ("invalid color: " ^ color))
+let color_list_parser : color list Angstrom.t = sep_by (char ',') color_parser
+
+let color_list_list_parser : color list list Angstrom.t =
+  sep_by (char ';') color_list_parser
 ;;
+
+let game_parser : (int * color list list) Angstrom.t =
+  let gp = ws *> string "Game" <* ws >>= fun _ -> int <* ws <* char ':' in
+  let cp = ws *> color_list_list_parser in
+  gp >>= fun i -> cp >>= fun c -> return (i, c)
+;;
+
+(* let test_color_list_parser = *)
+(*   let test_string = "5 blue, 6 red, 7 green; 1 red, 6 blue" in *)
+(*   match Angstrom.parse_string ~consume:All color_list_list_parser test_string with *)
+(*   | Ok color -> *)
+(*     List.iter color ~f:(fun l -> *)
+(*       List.iter l ~f:(fun c -> *)
+(*         match c with *)
+(*         | Red i -> printf "red: %d\n" i *)
+(*         | Green i -> printf "green: %d\n" i *)
+(*         | Blue i -> printf "blue: %d\n" i)) *)
+(*   | Error msg -> failwith msg *)
+(* ;; *)
+
+let parse str =
+  match Angstrom.parse_string ~consume:All (sep_by (string " ") game_parser) str with
+  | Ok parsed_game -> List.hd_exn parsed_game
+  | Error msg -> failwith msg
+;;
+
+(* let capture_color_count s = *)
+(*   let pattern = Str.regexp {|\([0-9]+\)\([a-z]+\)|} in *)
+(*   if Str.string_match pattern s 0 *)
+(*   then ( *)
+(*     let count = Str.matched_group 1 s in *)
+(*     let color = Str.matched_group 2 s in *)
+(*     count, color) *)
+(*   else raise (Failure "no color count match") *)
+(* ;; *)
+
+(* let parse_color_count (count, color) = *)
+(*   let count = Int.of_string count in *)
+(*   match color with *)
+(*   | "red" -> Red count *)
+(*   | "green" -> Green count *)
+(*   | "blue" -> Blue count *)
+(*   | _ -> raise (Failure ("invalid color: " ^ color)) *)
+(* ;; *)
 
 type reveal =
   { red : int
@@ -71,19 +116,18 @@ let calculate_power reveals =
   power
 ;;
 
-let parse_reveal s =
-  let colors = String.split ~on:',' s in
-  let parsed_colors =
-    List.map colors ~f:(fun c -> c |> capture_color_count |> parse_color_count)
-  in
-  let reveal = create_reveal parsed_colors in
-  reveal
-;;
+(* let parse_reveal s = *)
+(*   let colors = String.split ~on:',' s in *)
+(*   let parsed_colors = *)
+(*     List.map colors ~f:(fun c -> c |> capture_color_count |> parse_color_count) *)
+(*   in *)
+(*   let reveal = create_reveal parsed_colors in *)
+(*   reveal *)
+(* ;; *)
 
 let parse_game s =
-  let cleaned = String.substr_replace_all s ~pattern:" " ~with_:"" in
-  let game, remaining_string = capture_game cleaned in
-  let reveals = String.split ~on:';' remaining_string |> List.map ~f:parse_reveal in
+  let game, draws = parse s in
+  let reveals = List.map draws ~f:create_reveal in
   game, reveals
 ;;
 
@@ -104,3 +148,17 @@ let _part2 =
   let total = List.fold powers ~init:0 ~f:( + ) in
   printf "%d\n" total
 ;;
+
+(* Example usage *)
+(* let () = *)
+(*   let input_string = "Game 1: 3 blue, 4 red; 1 red, 2 green, 6 blue; 2 green" in *)
+(*   let parsed_game = parse input_string in *)
+(*   let game = List.hd_exn parsed_game in *)
+(*   printf "game: %d " (fst game); *)
+(*   List.iter (snd game) ~f:(fun l -> *)
+(*     List.iter l ~f:(fun x -> *)
+(*       match x with *)
+(*       | Green i -> printf "green: %d " i *)
+(*       | Blue i -> printf "blue: %d " i *)
+(*       | Red i -> printf "red: %d " i)) *)
+(* ;; *)
