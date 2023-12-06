@@ -41,19 +41,6 @@ let game_parser : (int * color list list) Angstrom.t =
   gp >>= fun i -> cp >>= fun c -> return (i, c)
 ;;
 
-(* let test_color_list_parser = *)
-(*   let test_string = "5 blue, 6 red, 7 green; 1 red, 6 blue" in *)
-(*   match Angstrom.parse_string ~consume:All color_list_list_parser test_string with *)
-(*   | Ok color -> *)
-(*     List.iter color ~f:(fun l -> *)
-(*       List.iter l ~f:(fun c -> *)
-(*         match c with *)
-(*         | Red i -> printf "red: %d\n" i *)
-(*         | Green i -> printf "green: %d\n" i *)
-(*         | Blue i -> printf "blue: %d\n" i)) *)
-(*   | Error msg -> failwith msg *)
-(* ;; *)
-
 let parse str =
   match Angstrom.parse_string ~consume:All (sep_by (string " ") game_parser) str with
   | Ok parsed_game -> List.hd_exn parsed_game
