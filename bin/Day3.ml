@@ -169,7 +169,7 @@ let capture_number2 iter cord_map =
   let number = Int.of_string s in
   let map =
     List.fold deduped ~init:cord_map ~f:(fun acc x ->
-      CordMap.update acc x ~f:(function
+      Map.update acc x ~f:(function
         | None -> [ number ]
         | Some l -> number :: l))
   in
@@ -214,7 +214,7 @@ let traverse2 iter cord_map =
   in
   let map = aux iter cord_map in
   let sum =
-    CordMap.fold map ~init:0 ~f:(fun ~key:_ ~data acc ->
+    Map.fold map ~init:0 ~f:(fun ~key:_ ~data acc ->
       if List.length data = 2
       then (
         let first = List.hd_exn data in

@@ -312,6 +312,13 @@ let humidity_to_location =
   |> parse_ranges
 ;;
 
+let humidity_locations =
+  List.map humidity_to_location ~f:(fun m ->
+    let dest_range = List.range m.dest (m.dest + m.len) in
+    dest_range)
+  |> List.concat
+;;
+
 let search seed =
   let location =
     seed
@@ -326,8 +333,85 @@ let search seed =
   location
 ;;
 
-let locations = List.map seeds ~f:search in
-let min_location = List.min_elt locations ~compare:Int.compare in
-match min_location with
-| Some x -> print_endline (Int.to_string x)
-| None -> print_endline "no min location"
+(*part 1*)
+(* let locations = List.map seeds ~f:search in *)
+(* let min_location = List.min_elt locations ~compare:Int.compare in *)
+(* match min_location with *)
+(* | Some x -> print_endline (Int.to_string x) *)
+(* | None -> print_endline "no min location" *)
+(**)
+
+(*part 2*)
+let rec seed_split list acc =
+  match list with
+  | [] -> acc
+  | a :: b :: tl -> seed_split tl ((a, b) :: acc)
+  | _ -> failwith "bad seed"
+;;
+
+(* need to split seed range based on next mappings*)
+
+(* module T = Domainslib.Task *)
+(**)
+(* let search_range pool a b = *)
+(*   T.async pool (fun _ -> *)
+(*     let range = List.range a b in *)
+(*     List.map range ~f:search |> List.min_elt ~compare:Int.compare) *)
+(* ;; *)
+(**)
+(* let start_time = Time_float.now () in *)
+(* let pool = T.setup_pool ~num_domains:10 () in *)
+(* let seed_with_range = seed_split seeds [] in *)
+(* let res = *)
+(*   T.run pool (fun _ -> *)
+(*     let locations = *)
+(*       List.map seed_with_range ~f:(fun (a, b) -> *)
+(*         let result = search_range pool a (a + b) in *)
+(*         T.await pool result) *)
+(*     in *)
+(*     let filtered = List.filter_opt locations in *)
+(*     let min_location = List.min_elt filtered ~compare:Int.compare in *)
+(*     min_location) *)
+(* in *)
+(* (match res with *)
+(*  | Some x -> print_endline (Int.to_string x) *)
+(*  | None -> print_endline "no min location"); *)
+(* let end_time = Time_float.now () in *)
+(* print_endline (Time_float.diff end_time start_time |> Time_float.Span.to_string); *)
+(* T.teardown_pool pool *)
+
+(*
+   seeds: (79, 92) (55  67)
+
+   seed-to-soil map:
+   50 98 2
+   52 50 48
+
+   soil-to-fertilizer map:
+   0 15 37
+   37 52 2
+   39 0 15
+
+   fertilizer-to-water map:
+   49 53 8
+   0 11 42
+   42 0 7
+   57 7 4
+
+   water-to-light map:
+   88 18 7
+   18 25 70
+
+   light-to-temperature map:
+   45 77 23
+   81 45 19
+   68 64 13
+
+   temperature-to-humidity map:
+   0 69 1
+   1 0 69
+
+   humidity-to-location map:
+   60 56 37
+   56 93 4
+*)
