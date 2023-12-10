@@ -1,6 +1,7 @@
 open Core
 
 type card =
+  | J (*pt 2 now joker *)
   | Two
   | Three
   | Four
@@ -10,11 +11,10 @@ type card =
   | Eight
   | Nine
   | T
-  | J
   | Q
   | K
   | A
-[@@deriving compare, sexp]
+[@@deriving compare, sexp, equal]
 
 module Card = struct
   type t = card [@@deriving compare, sexp]
@@ -32,21 +32,23 @@ let counts =
       | Some x -> x + 1))
 ;;
 
-let is_five_of_a_kind counts = Map.length counts = 1
-
-let is_four_of_a_kind counts =
-  Map.length counts = 2 && Map.exists counts ~f:(fun v -> v = 4)
+let j_count counts =
+  match Map.find counts J with
+  | None -> 0
+  | Some x -> x
 ;;
 
-let is_three_of_a_kind counts =
-  let num_of_ones = Map.filter counts ~f:(fun c -> c = 1) |> Map.length in
-  Map.length counts = 3 && num_of_ones = 2
-;;
+let is_high_card counts = Map.length counts = 5
+let is_one_pair counts = Map.length counts = 4
 
-let is_full_house counts =
-  Map.length counts = 2
-  && Map.exists counts ~f:(fun v -> v = 3)
-  && Map.exists counts ~f:(fun v -> v = 2)
+(*
+   is one pair
+   or
+   j count = 1 and is high card
+*)
+let is_one_pair_j counts =
+  let j_count = j_count counts in
+  is_one_pair counts || (j_count = 1 && is_high_card counts)
 ;;
 
 let is_two_pair counts =
@@ -54,8 +56,22 @@ let is_two_pair counts =
   num_of_twos = 2
 ;;
 
-let is_one_pair counts = Map.length counts = 4
-let is_high_card counts = Map.length counts = 5
+let is_three_of_a_kind counts =
+  let num_of_ones = Map.filter counts ~f:(fun c -> c = 1) |> Map.length in
+  Map.length counts = 3 && num_of_ones = 2
+;;
+
+let is_four_of_a_kind counts =
+  Map.length counts = 2 && Map.exists counts ~f:(fun v -> v = 4)
+;;
+
+let is_five_of_a_kind counts = Map.length counts = 1
+
+let is_full_house counts =
+  Map.length counts = 2
+  && Map.exists counts ~f:(fun v -> v = 3)
+  && Map.exists counts ~f:(fun v -> v = 2)
+;;
 
 type hand_rank =
   | HighCard
@@ -84,6 +100,31 @@ let find_rank hand =
   else HighCard
 ;;
 
+let best_rank hand =
+  let counts = counts hand in
+  let joker_count = j_count counts in
+  let distinct_non_jacks =
+    Map.filter_keys counts ~f:(fun k -> not (equal_card k J)) |> Map.length
+  in
+  match joker_count, distinct_non_jacks with
+  | 0, _ -> find_rank hand
+  | 1, 1 -> FiveOfAKind (* J, 1 1 1 1 *)
+  | 1, 2 ->
+    if is_three_of_a_kind counts
+    then FourOfAKind
+    else FullHouse (* J 1 1 2 2 | J 1 1 1 2*)
+  | 1, 3 -> ThreeOfAKind (* J 1 1 2 3 *)
+  | 1, 4 -> OnePair (* J 1 2 3 4*)
+  | 2, 1 -> FiveOfAKind (* J J 1 1 1*)
+  | 2, 2 -> FourOfAKind (* J J 1 1 2*)
+  | 2, 3 -> ThreeOfAKind (* J J 1 2 3*)
+  | 3, 1 -> FiveOfAKind (* J J J 1 1*)
+  | 3, 2 -> FourOfAKind (* J J J 1 2*)
+  | 4, 1 -> FiveOfAKind (* J J J J 1*)
+  | 5, 0 -> FiveOfAKind
+  | _ -> failwith "invalid hand"
+;;
+
 let rec compare_high_card (lista : hand) (listb : hand) =
   match lista, listb with
   | [ a ], [ b ] -> Card.compare a b
@@ -94,8 +135,8 @@ let rec compare_high_card (lista : hand) (listb : hand) =
 ;;
 
 let compare_hands handa handb =
-  let rank_a = find_rank handa in
-  let rank_b = find_rank handb in
+  let rank_a = best_rank handa in
+  let rank_b = best_rank handb in
   let compared = compare_hand_rank rank_a rank_b in
   if compared = 0 then compare_high_card handa handb else compared
 ;;
@@ -131,7 +172,7 @@ let sorted = List.sort hands ~compare:(fun (h_a, _) (h_b, _) -> compare_hands h_
 let total =
   List.foldi sorted ~init:0 ~f:(fun idx acc (hand, bid) ->
     let rank = idx + 1 in
-    let hand_rank = find_rank hand in
+    let hand_rank = best_rank hand in
     let hand_rank_string = hand_rank |> sexp_of_hand_rank |> Sexp.to_string_hum in
     let hand_string = hand |> sexp_of_hand |> Sexp.to_string_hum in
     printf
