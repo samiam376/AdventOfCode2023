@@ -58,6 +58,7 @@ let ends_with s c = Char.equal s.[String.length s - 1] c
 let rec gcd a b = if b = 0 then a else gcd b (a mod b)
 let lcm a b = if a = 0 || b = 0 then 0 else a * b / gcd a b
 
+(* the paths are cyclic so we need to find when they all end at the same time*)
 let search2 directions map =
   let starts = Map.filter_keys ~f:(fun k -> ends_with k 'A') map |> Map.keys in
   List.iter starts ~f:print_endline;
@@ -76,7 +77,6 @@ let search2 directions map =
   final
 ;;
 
-(*start at AAA end at ZZZ*)
 let () =
   let directions, map = parse in
   let cord_map =
