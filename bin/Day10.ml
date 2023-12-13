@@ -124,6 +124,7 @@ let next_direction = function
   | _ -> None
 ;;
 
+(*map matrix to 1d array to make easier*)
 let idx_to_cords ~width idx = idx mod width, idx / width
 let cord_to_width ~width (x, y) = (y * width) + x
 
@@ -139,13 +140,6 @@ let get_next_cord (x, y) direction =
   | South -> x, y + 1
   | East -> x + 1, y
   | West -> x - 1, y
-;;
-
-let directions_to_search = function
-  | North -> [ North; East; West ]
-  | South -> [ South; East; West ]
-  | East -> [ East; North; South ]
-  | West -> [ West; North; South ]
 ;;
 
 let rec capture_cycle ~width direction array cord cycle =
