@@ -128,10 +128,13 @@ let next_direction = function
 let idx_to_cords ~width idx = idx mod width, idx / width
 let cord_to_width ~width (x, y) = (y * width) + x
 
-let get_value ~width arr (x, y) =
-  let len = Array.length arr in
-  let cord = cord_to_width ~width (x, y) in
-  if cord < 0 || cord >= len then None else Some arr.(cord)
+let get_value ~width ~height arr (x, y) =
+  if x < 0 || x >= width || y < 0 || y >= height
+  then None
+  else (
+    let len = Array.length arr in
+    let cord = cord_to_width ~width (x, y) in
+    if cord < 0 || cord >= len then None else Some arr.(cord))
 ;;
 
 let get_next_cord (x, y) direction =
@@ -142,42 +145,56 @@ let get_next_cord (x, y) direction =
   | West -> x - 1, y
 ;;
 
-let rec capture_cycle ~width direction array cord cycle =
-  let value = get_value ~width array cord in
-  printf
-    "capturing cycle at (%d, %d) with current direction: %s\n"
-    (fst cord)
-    (snd cord)
-    (sexp_of_direction direction |> Sexp.to_string_hum);
+let rec capture_cycle ~height ~width direction array cord cycle =
+  let value = get_value ~height ~width array cord in
+  (* printf *)
+  (*   "capturing cycle at (%d, %d) with current direction: %s\n" *)
+  (*   (fst cord) *)
+  (*   (snd cord) *)
+  (*   (sexp_of_direction direction |> Sexp.to_string_hum); *)
   match value with
-  | Some 'S' -> Some ('S' :: cycle)
+  | Some 'S' -> Some (('S', cord) :: cycle)
   | None -> None
   | Some c ->
     let next_direction = next_direction (direction, c) in
     (match next_direction with
      | Some d ->
        let next_cord = get_next_cord cord d in
-       printf
-         "next cord: (%d, %d) with next direction: %s\n"
-         (fst next_cord)
-         (snd next_cord)
-         (sexp_of_direction d |> Sexp.to_string_hum);
-       capture_cycle ~width d array next_cord (c :: cycle)
+       (* printf *)
+       (*   "next cord: (%d, %d) with next direction: %s\n" *)
+       (*   (fst next_cord) *)
+       (*   (snd next_cord) *)
+       (*   (sexp_of_direction d |> Sexp.to_string_hum); *)
+       capture_cycle ~width ~height d array next_cord ((c, cord) :: cycle)
      | None -> Some cycle)
 ;;
 
-let start_search ~width array cord =
+let get_directions_to_search = function
+  | North -> [ North; East; West ]
+  | South -> [ South; East; West ]
+  | East -> [ East; North; South ]
+  | West -> [ West; North; South ]
+;;
+
+let start_search ~height ~width array cord =
   let found_cycles =
     List.map [ North; South; East; West ] ~f:(fun d ->
       let start = get_next_cord cord d in
       printf "starting search at (%d, %d)\n" (fst start) (snd start);
-      let found_cycles = capture_cycle ~width d array start [ 'S' ] in
+      let found_cycles = capture_cycle ~height ~width d array start [ 'S', start ] in
       found_cycles)
   in
   let cycle_lens =
-    found_cycles |> List.filter_opt |> List.map ~f:(fun c -> (List.length c - 1) / 2)
+    found_cycles
+    |> List.filter_opt
+    |> List.map ~f:(fun c ->
+      let len = (List.length c - 1) / 2 in
+      len, c)
   in
-  cycle_lens
+  let longest_cycle =
+    List.max_elt cycle_lens ~compare:(fun (a, _) (b, _) -> Int.compare a b)
+  in
+  longest_cycle
 ;;
 
 let print_matrix m width =
@@ -185,6 +202,23 @@ let print_matrix m width =
     printf "%c" c;
     if (i + 1) % width = 0 then printf "\n")
 ;;
+
+(*shoelace theorem formula*)
+let shoelace_area cords =
+  let rec sum c acc =
+    match c with
+    | (x1, y1) :: (x2, y2) :: tl -> sum ((x2, y2) :: tl) (acc + ((y1 + y2) * (x1 - x2)))
+    | [ (x1, y1) ] ->
+      let x2, y2 = List.hd_exn cords in
+      acc + ((y1 + y2) * (x1 - x2))
+    | _ -> failwith "invalid input"
+  in
+  let s = sum cords 0 in
+  abs s / 2
+;;
+
+(*inverse picks theorem*)
+let find_interior_points area boundary_points = area + 1 - (boundary_points / 2)
 
 (*find where the start cord is*)
 let find_start tiles = Array.findi tiles ~f:(fun _ c -> Char.equal c 'S')
@@ -194,16 +228,22 @@ let input = In_channel.read_lines "data/10.txt"
 let rows = List.map input ~f:(fun s -> String.to_list s |> Array.of_list);;
 
 let width = Array.length (List.hd_exn rows) in
+let height = List.length rows in
+printf "width: %d, height: %d\n" width height;
 let tiles = Array.concat rows in
-print_matrix tiles width;
 let start = find_start tiles in
 match start with
 | None -> printf "no start found\n"
 | Some (idx, _) ->
   let x, y = idx_to_cords ~width idx in
   printf "start: %d, %d\n" x y;
-  let result = start_search ~width tiles (x, y) in
-  let max_result = List.max_elt result ~compare:Int.compare in
-  (match max_result with
+  let result = start_search ~height ~width tiles (x, y) in
+  (match result with
    | None -> printf "no result found\n"
-   | Some r -> printf "result: %d\n" r)
+   | Some (len, cycle) ->
+     printf "length: %d\n" len;
+     let boundary_points = List.length cycle in
+     let cords = List.map cycle ~f:snd in
+     let area = shoelace_area cords in
+     let interior_points = find_interior_points area boundary_points in
+     printf "area: %d, interior points: %d\n" area interior_points)
