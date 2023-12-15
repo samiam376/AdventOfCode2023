@@ -42,7 +42,11 @@ let expanded_distance (x1, y1) (x2, y2) ~rows_to_expand ~cols_to_expand ~factor 
   in
   printf "x_expansion: %d\n" x_expansion;
   printf "y_expansion: %d\n" y_expansion;
-  let d = distance (x1, y1) (x2, y2) + (x_expansion * factor) + (y_expansion * factor) in
+  let d =
+    distance (x1, y1) (x2, y2)
+    + (x_expansion * (factor - 1))
+    + (y_expansion * (factor - 1))
+  in
   printf "distance: %d\n" d;
   d
 ;;
@@ -54,7 +58,7 @@ let galaxy_cords = List.filter new_cords ~f:(fun (r, c) -> is_galaxy chars.(r).(
 let all_pairs = List.cartesian_product galaxy_cords galaxy_cords in
 let shortest_path =
   List.map all_pairs ~f:(fun (c1, c2) ->
-    expanded_distance c1 c2 ~rows_to_expand ~cols_to_expand ~factor:1)
+    expanded_distance c1 c2 ~rows_to_expand ~cols_to_expand ~factor:1_000_000)
 in
 let total = List.fold shortest_path ~init:0 ~f:( + ) in
 let final = total / 2 in
