@@ -6,8 +6,16 @@ let data =
   List.map lines ~f:(String.split ~on:' ')
   |> List.map ~f:(function
     | [ springs; counts ] ->
-      let parsed_counts = counts |> String.split ~on:',' |> List.map ~f:Int.of_string in
-      String.to_list springs, parsed_counts
+      let expanded_spring =
+        List.range 0 5 |> List.map ~f:(fun _ -> springs) |> String.concat ~sep:"?"
+      in
+      let expanded_count =
+        List.range 0 5 |> List.map ~f:(fun _ -> counts) |> String.concat ~sep:","
+      in
+      let parsed_counts =
+        expanded_count |> String.split ~on:',' |> List.map ~f:Int.of_string
+      in
+      String.to_list expanded_spring, parsed_counts
     | _ -> failwith "unexpcted structure")
 ;;
 
