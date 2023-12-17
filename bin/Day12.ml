@@ -6,86 +6,91 @@ let data =
   List.map lines ~f:(String.split ~on:' ')
   |> List.map ~f:(function
     | [ springs; counts ] ->
-      let parsed_springs = String.to_array springs in
       let parsed_counts = counts |> String.split ~on:',' |> List.map ~f:Int.of_string in
-      parsed_springs, parsed_counts
+      String.to_list springs, parsed_counts
     | _ -> failwith "unexpcted structure")
 ;;
 
-let rec powerset = function
-  | [] ->
-    [ [] ]
-    (* Base case: The powerset of an empty list is a list containing the empty list *)
-  | x :: xs ->
-    let ps = powerset xs in
-    ps @ List.map ~f:(fun set -> x :: set) ps (* Add x to each subset of the powerset *)
-;;
+let is_period c = Char.equal c '.'
+let is_question_mark c = Char.equal c '?'
+let is_hashtag c = Char.equal c '#'
+let all_periods l = List.for_all l ~f:is_period
 
-let print_power ps =
-  printf "powerset\n";
-  List.iter ps ~f:(fun l -> List.iter l ~f:(fun i -> printf "%d " i));
-  printf "\n"
-;;
+type input =
+  { springs : char list
+  ; counts : int list
+  }
+[@@deriving equal, compare, sexp_of, of_sexp, hash]
 
-let is_valid groups counts =
-  if List.length groups <> List.length counts
-  then false
-  else (
-    let valid_groups =
-      List.map2_exn groups counts ~f:(fun g c ->
-        let len = String.length g in
-        Int.equal len c)
+module InputHashtable = Hashtbl.Make (struct
+    type t = input [@@deriving equal, compare, sexp_of, of_sexp, hash]
+  end)
+
+let num_valid_solutions_non_rec num_valid_solutions input =
+  let { springs; counts } = input in
+  match springs, counts with
+  | _, [] ->
+    (*when counts is empty, check that there must be no more remaining springs for it to be valid*)
+    List.mem springs '#' ~equal:Char.equal |> not |> Bool.to_int
+    (*when the springs are empty, there must be no more remaining counts for it to be valid*)
+  | [], _ -> List.is_empty counts |> Bool.to_int
+  | cur_char :: rest_char, c when is_period cur_char ->
+    num_valid_solutions { springs = rest_char; counts = c }
+  | (cur_char :: _ as cur), cur_count :: rest_count when is_hashtag cur_char ->
+    (* when the current char is # we need to check the following
+       - there are enough remaining characters to complete the current group
+       - if there are enough characters they are all ? or # (not .)
+       - the next character after the group isnt # (it would be considered part of the same group if so)
+       - or this is the end of the string
+    *)
+    (* printf "------\n"; *)
+    (* printf "cur count: %d\n" cur_count; *)
+    (* printf "remaining count: "; *)
+    (* List.iter rest_count ~f:(fun c -> printf "%d " c); *)
+    (* printf "\n"; *)
+    let group =
+      if List.length cur >= cur_count then Some (List.take cur cur_count) else None
     in
-    List.for_all valid_groups ~f:(fun g -> g))
-;;
-
-let unkown_idxs springs =
-  Array.foldi springs ~init:[] ~f:(fun idx acc v ->
-    if Char.equal v '?' then idx :: acc else acc)
-;;
-
-let print_int_list numbers =
-  List.iter ~f:(fun num -> printf "%d " num) numbers;
-  printf "\n"
-;;
-
-let group_exp = Re2.create_exn {|#+|}
-let find_groups s = Re2.find_all_exn group_exp s
-
-let solution =
-  List.map data ~f:(fun (springs, counts) ->
-    let unkown_idxs = unkown_idxs springs in
-    (* printf "unkown_idxs: \n"; *)
-    (* print_int_list unkown_idxs; *)
-    let powerset = powerset unkown_idxs in
-    (* printf "powerset len: %d\n" (List.length powerset); *)
-    (* print_power powerset; *)
-    let arrangements =
-      List.map powerset ~f:(fun s ->
-        if List.length s = 0
-        then false
-        else (
-          (* printf "powerset: \n"; *)
-          (* print_int_list s; *)
-          let replaced =
-            Array.mapi springs ~f:(fun i a ->
-              let is_unkown = List.mem s i ~equal:Int.equal in
-              if is_unkown then '#' else if Char.equal a '?' then '.' else a)
-          in
-          let groups =
-            replaced
-            |> String.of_array
-            |> (fun s ->
-                 printf "%s s" s;
-                 s)
-            |> find_groups
-          in
-          (* List.iter groups ~f:(fun g -> printf "group %s" g); *)
-          is_valid groups counts))
+    let valid_group =
+      match group with
+      | None -> false
+      | Some g ->
+        (* printf "group: "; *)
+        (* List.iter g ~f:(fun c -> printf "%c" c); *)
+        (* printf "\n"; *)
+        List.for_all g ~f:(fun ch -> not (is_period ch))
     in
-    List.fold arrangements ~init:0 ~f:(fun acc b -> if b then acc + 1 else acc))
+    let valid_ending =
+      match List.nth cur cur_count with
+      | None -> true
+      | Some ch -> not (is_hashtag ch)
+    in
+    if valid_group && valid_ending
+    then (
+      (* printf "valid group: %b, valid ending: %b\n" valid_group valid_ending; *)
+      let remaining = List.drop cur (cur_count + 1) in
+      (* printf "Remaining: "; *)
+      (* List.iter remaining ~f:(fun c -> printf "%c " c); *)
+      (* printf "\n"; *)
+      num_valid_solutions { springs = remaining; counts = rest_count })
+    else (* printf "invalid group\n"; *)
+      0
+  | cur_char :: rest_char, c when is_question_mark cur_char ->
+    (*when the current char is a question mark we need to check if its valid as a # or as a . *)
+    num_valid_solutions { springs = '.' :: rest_char; counts = c }
+    + num_valid_solutions { springs = '#' :: rest_char; counts = c }
+  | _, _ -> failwith "unexpected"
 ;;
 
-let total = List.fold solution ~init:0 ~f:( + );;
+let num_valid_solutions =
+  Memo.recursive ~hashable:InputHashtable.hashable num_valid_solutions_non_rec
+;;
 
-printf "solution: %d" total
+let total =
+  List.fold data ~init:0 ~f:(fun acc (springs, counts) ->
+    let solutions = num_valid_solutions { springs; counts } in
+    acc + solutions)
+;;
+
+(*correct is 8075*)
+printf "total: %d" total
