@@ -38,3 +38,12 @@ let () =
 
 printf "rolled grid\n";
 print_array grid
+
+let sum =
+  Array.foldi grid ~init:0 ~f:(fun row_idx acc row ->
+    acc
+    + Array.fold row ~init:0 ~f:(fun acc curr ->
+      if is_o curr then acc + (rows - row_idx) else acc))
+;;
+
+printf "sum: %d\n" sum
