@@ -77,7 +77,17 @@ let is_reflection values reflection_idx =
     is_r)
 ;;
 
-let find_reflections array =
+type reflection =
+  | Vertical of int
+  | Horizontal of int
+[@@deriving equal]
+
+let print_reflection = function
+  | Vertical i -> printf "vertical: %d\n" i
+  | Horizontal i -> printf "horizontal: %d\n" i
+;;
+
+let find_reflections array ~prev_reflection =
   let nrows = Array.length array in
   let ncols = Array.length array.(0) in
   (* printf "nrows: %d, ncols %d \n" nrows ncols; *)
@@ -101,28 +111,74 @@ let find_reflections array =
   in
   match vertical_refleciton, horiztonal_reflection with
   | Some v, Some h ->
+    (match prev_reflection with
+     | None -> failwith "two reflections found"
+     | Some (Vertical old_v) ->
+       if v = old_v then Some (Vertical h) else failwith "unexpected old_v"
+     | Some (Horizontal old_h) ->
+       if h = old_h then Some (Vertical v) else failwith "unexpected old_h")
     (* printf "found dims: (%d, %d) " nrows ncols; *)
     (* printf "vertical: %d, horiztonal: %d\n" v h; *)
-    v + 1 + (100 * (h + 1))
   | Some v, None ->
+    Some (Vertical v)
     (* printf "found dims: (%d, %d) " nrows ncols; *)
     (* printf "vertical: %d\n" v; *)
-    v + 1
   | None, Some h ->
+    Some (Horizontal h)
     (* printf "found dims: (%d, %d) " nrows ncols; *)
     (* printf "horizontal: %d\n" h; *)
-    100 * (h + 1)
-  | None, None ->
-    (* printf "none found: dims (%d, %d)\n" nrows ncols; *)
-    0
+  | None, None -> None
+;;
+
+(* printf "none found: dims (%d, %d)\n" nrows ncols; *)
+
+let deep_copy_array arr =
+  let copy = Array.map ~f:Array.copy arr in
+  copy
 ;;
 
 let reflections =
   List.map arrays ~f:(fun array ->
-    let reflections = find_reflections array in
-    (* printf "reflection: %d\n" reflections; *)
-    reflections)
+    let rows = List.range 0 (Array.length array) in
+    let cols = List.range 0 (Array.length array.(0)) in
+    let cords = List.cartesian_product rows cols in
+    let smudges =
+      List.map cords ~f:(fun (r, c) ->
+        let new_array = deep_copy_array array in
+        let current_value = array.(r).(c) in
+        let new_value = if Char.equal current_value '.' then '#' else '.' in
+        new_array.(r).(c) <- new_value;
+        new_array)
+    in
+    let original_reflection =
+      match find_reflections array ~prev_reflection:None with
+      | Some v -> v
+      | None -> failwith "no original reflection"
+    in
+    let smudege_relfections =
+      List.filter_map smudges ~f:(fun smudged_array ->
+        Array.iter smudged_array ~f:(fun c ->
+          Array.iter c ~f:(fun v -> printf "%c" v);
+          printf "\n");
+        let ref =
+          find_reflections smudged_array ~prev_reflection:(Some original_reflection)
+        in
+        ref)
+    in
+    List.iter smudege_relfections ~f:(fun s -> print_reflection s);
+    printf "smudge ref len: %d\n" (List.length smudege_relfections);
+    List.find_exn smudege_relfections ~f:(fun s ->
+      not (equal_reflection s original_reflection))
+    (* printf "reflection: %d\n" reflections; *))
 ;;
 
-let total = List.fold reflections ~init:0 ~f:( + ) in
+let total =
+  List.fold reflections ~init:0 ~f:(fun acc curr ->
+    let v =
+      match curr with
+      | Horizontal i -> (i + 1) * 100
+      | Vertical i -> i + 1
+    in
+    acc + v)
+in
 printf "total: %d\n" total
