@@ -1,0 +1,2 @@
+offest: 85, cycle_len 93 
+sum: 97813
