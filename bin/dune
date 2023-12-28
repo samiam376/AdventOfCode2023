@@ -15,7 +15,9 @@
   Day12
   Day13
   Day14
-  Day15)
+  Day15
+  Day16
+  )
  (names
   Main
   Day1
@@ -32,7 +34,9 @@
   Day12
   Day13
   Day14
-  Day15)
+  Day15
+  Day16
+  )
  (flags
   (:standard -w -32))
  (libraries base stdio core str angstrom domainslib re2 num)
