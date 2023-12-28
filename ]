@@ -1,0 +1,29 @@
+open Core
+
+let input = In_channel.read_all "data/15.txt"
+
+let codes =
+  input |> String.substr_replace_all ~pattern:"\n" ~with_:"" |> String.split ~on:','
+;;
+
+let hash s =
+  s
+  |> String.to_list
+  |> List.fold ~init:0 ~f:(fun acc c ->
+    let ascii = Char.to_int c in
+    (acc + ascii) * 17 mod 256)
+;;
+
+(*pt 1*)
+let total =
+  List.fold codes ~init:0 ~f:(fun acc curr ->
+    let h = hash curr in
+    (* printf "curr: %s, hash: %d\n" curr h; *)
+    acc + h)
+;;
+
+printf "total: %d\n" total
+
+(*pt 2*)
+let boxes = Array.create ~len:255 []
+
