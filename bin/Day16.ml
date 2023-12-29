@@ -29,62 +29,6 @@ let cord_key (row, col) dir =
   key
 ;;
 
-let rec beam_imp input_cords dir seen ~shadow =
-  let cords = ref input_cords in
-  try
-    while true do
-      let row = fst !cords in
-      let col = snd !cords in
-      (* printf "row: %d, col %d\n" row col; *)
-      let key = cord_key (row, col) dir in
-      let is_inbounds = inbounds (row, col) in
-      (* printf "inbounds: %b\n" is_inbounds; *)
-      let has_visited = Hashtbl.mem seen key in
-      (* printf "has visited: %b\n" has_visited; *)
-      if is_inbounds && not has_visited
-      then (
-        let next = next_cords (row, col) in
-        Hashtbl.add_exn seen ~key ~data:true;
-        shadow.(row).(col) <- '#';
-        match grid.(row).(col) with
-        | '.' -> cords := next dir
-        | '\\' ->
-          (match dir with
-           | Up -> cords := next Left
-           | Down -> cords := next Right
-           | Left -> cords := next Up
-           | Right -> cords := next Down)
-        | '/' ->
-          (match dir with
-           | Up -> cords := next Right
-           | Down -> cords := next Left
-           | Left -> cords := next Down
-           | Right -> cords := next Up)
-        | '|' ->
-          (match dir with
-           | Up | Down -> cords := next dir
-           | Left | Right ->
-             printf "splitting | \n";
-             let up = next Up in
-             beam_imp up Up seen ~shadow;
-             let down = next Down in
-             beam_imp down Down seen ~shadow)
-        | '-' ->
-          (match dir with
-           | Left | Right -> cords := next dir
-           | Up | Down ->
-             printf "splitting -\n";
-             let left = next Left in
-             beam_imp left Left seen ~shadow;
-             let right = next Right in
-             beam_imp right Right seen ~shadow)
-        | _ -> failwith "unexpected char")
-      else raise Exit
-    done
-  with
-  | Exit -> printf "exiting\n"
-;;
-
 let rec beam (row, col) dir seen ~shadow =
   let key = cord_key (row, col) dir in
   if inbounds (row, col) && not (Hashtbl.mem seen key)
@@ -127,10 +71,7 @@ let rec beam (row, col) dir seen ~shadow =
 let shadow_grid = Array.make_matrix ~dimx:rows ~dimy:cols '.'
 let table = Hashtbl.create (module String);;
 
-beam (0, 0) Right table ~shadow:shadow_grid;;
-
-(* beam_imp (0, 0) Right table ~shadow:shadow_grid;; *)
-printf "done\n"
+beam (0, 0) Right table ~shadow:shadow_grid
 
 let print_grid arr =
   Array.iter arr ~f:(fun row ->
@@ -138,7 +79,7 @@ let print_grid arr =
     printf "\n")
 ;;
 
-print_grid shadow_grid
+(* print_grid shadow_grid *)
 
 let sum =
   shadow_grid
