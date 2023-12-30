@@ -1,14 +1,7 @@
 open Core
 
 let data = In_channel.read_lines "data/16.txt"
-let data_len = List.length data;;
-
-printf "data len: %d\n" data_len
-
-let first_string = List.hd_exn data |> String.length;;
-
-printf "first string len: %d\n" first_string
-
+let data_len = List.length data
 let grid = data |> List.map ~f:String.to_array |> Array.of_list
 let rows = Array.length grid
 let cols = Array.length grid.(0)
@@ -127,13 +120,22 @@ let beam_bfs ~queue ~seen ~shadow =
   visit ()
 ;;
 
-let shadow_grid = Array.make_matrix ~dimx:rows ~dimy:cols '.'
-let table = Hashtbl.create (module String)
-let node_set = NodeSet.create ()
-let node_q = Queue.create ();;
-
-Queue.enqueue node_q { cords = 0, 0; dir = Right };;
-beam_bfs ~queue:node_q ~seen:node_set ~shadow:shadow_grid
+let calc_engery start_node =
+  let shadow_grid = Array.make_matrix ~dimx:rows ~dimy:cols '.' in
+  let node_set = NodeSet.create () in
+  let node_q = Queue.create () in
+  Queue.enqueue node_q start_node;
+  beam_bfs ~queue:node_q ~seen:node_set ~shadow:shadow_grid;
+  let shadow_sum =
+    shadow_grid
+    |> Array.to_sequence
+    |> Sequence.map ~f:Array.to_sequence
+    |> Sequence.concat
+    |> Sequence.fold ~init:0 ~f:(fun acc curr ->
+      if Char.equal '#' curr then acc + 1 else acc)
+  in
+  shadow_sum
+;;
 
 let print_grid arr =
   Array.iter arr ~f:(fun row ->
@@ -141,13 +143,32 @@ let print_grid arr =
     printf "\n")
 ;;
 
-let shadow_sum =
-  shadow_grid
-  |> Array.to_sequence
-  |> Sequence.map ~f:Array.to_sequence
-  |> Sequence.concat
-  |> Sequence.fold ~init:0 ~f:(fun acc curr ->
-    if Char.equal '#' curr then acc + 1 else acc)
+(*pt 1 *)
+let s = calc_engery { cords = 0, 0; dir = Right }
+
+(*p2 find max energy start*)
+let top = Sequence.range 0 cols |> Sequence.map ~f:(fun v -> { cords = 0, v; dir = Down })
+
+let bottom =
+  Sequence.range 0 cols |> Sequence.map ~f:(fun v -> { cords = rows - 1, v; dir = Up })
 ;;
 
-printf "shadow sum: %d\n" shadow_sum
+let left =
+  Sequence.range 0 rows |> Sequence.map ~f:(fun v -> { cords = v, 0; dir = Right })
+;;
+
+let right =
+  Sequence.range 0 rows |> Sequence.map ~f:(fun v -> { cords = v, cols - 1; dir = Left })
+;;
+
+let max =
+  [ top; bottom; left; right ]
+  |> Sequence.of_list
+  |> Sequence.concat
+  |> Sequence.map ~f:(fun n -> calc_engery n)
+  |> Sequence.max_elt ~compare
+;;
+
+match max with
+| Some m -> printf "max energy: %d\n" m
+| None -> printf "no max found"
