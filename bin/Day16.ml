@@ -58,7 +58,7 @@ let next_node cords dir =
   { cords = nc; dir }
 ;;
 
-let beam_bfs ~queue ~seen =
+let beam_bfs ~queue ~seen ~shadow =
   let rec visit () =
     match Queue.dequeue queue with
     | None -> ()
@@ -70,111 +70,70 @@ let beam_bfs ~queue ~seen =
       else (
         let value = grid.(fst cords).(snd cords) in
         Hash_set.add seen node;
+        shadow.(fst cords).(snd cords) <- '#';
+        let nq direction = Queue.enqueue queue (next_node cords direction) in
         match value with
         | '.' ->
-          Queue.enqueue queue (next_node cords dir);
+          nq dir;
           visit ()
         | '|' ->
           (match dir with
            | Up | Down ->
-             Queue.enqueue queue (next_node cords dir);
+             nq dir;
              visit ()
            | Left | Right ->
-             Queue.enqueue queue (next_node cords Up);
-             Queue.enqueue queue (next_node cords Down);
+             nq Up;
+             nq Down;
              visit ())
         | '-' ->
           (match dir with
            | Left | Right ->
-             Queue.enqueue queue (next_node cords dir);
+             nq dir;
              visit ()
            | Up | Down ->
-             Queue.enqueue queue (next_node cords Left);
-             Queue.enqueue queue (next_node cords Right);
+             nq Left;
+             nq Right;
              visit ())
         | '\\' ->
           (match dir with
            | Up ->
-             Queue.enqueue queue (next_node cords Left);
+             nq Left;
              visit ()
            | Down ->
-             Queue.enqueue queue (next_node cords Right);
+             nq Right;
              visit ()
            | Left ->
-             Queue.enqueue queue (next_node cords Up);
+             nq Up;
              visit ()
            | Right ->
-             Queue.enqueue queue (next_node cords Down);
+             nq Down;
              visit ())
         | '/' ->
           (match dir with
            | Up ->
-             Queue.enqueue queue (next_node cords Right);
+             nq Right;
              visit ()
            | Down ->
-             Queue.enqueue queue (next_node cords Left);
+             nq Left;
              visit ()
            | Left ->
-             Queue.enqueue queue (next_node cords Down);
+             nq Down;
              visit ()
            | Right ->
-             Queue.enqueue queue (next_node cords Up);
+             nq Up;
              visit ())
         | c -> failwith ("unexpected char: " ^ String.of_char c))
   in
   visit ()
 ;;
 
-let rec beam (row, col) ~dir ~seen ~shadow =
-  let key = cord_key (row, col) dir in
-  if inbounds (row, col) && not (Hashtbl.mem seen key)
-  then (
-    (* printf "at row: %d, col: %d\n" row col; *)
-    let value = grid.(row).(col) in
-    let next = next_cords (row, col) in
-    Hashtbl.add_exn seen ~key ~data:true;
-    shadow.(row).(col) <- '#';
-    let continue direction = beam (next direction) ~shadow ~seen ~dir:direction in
-    match value with
-    | '.' -> continue dir
-    | '|' ->
-      (match dir with
-       | Up | Down -> continue dir
-       | Left | Right ->
-         continue Up;
-         continue Down)
-    | '-' ->
-      (match dir with
-       | Left | Right -> continue dir
-       | Up | Down ->
-         continue Right;
-         continue Left)
-    | '\\' ->
-      (match dir with
-       | Up -> continue Left
-       | Down -> continue Right
-       | Left -> continue Up
-       | Right -> continue Down)
-    | '/' ->
-      (match dir with
-       | Up -> continue Right
-       | Down -> continue Left
-       | Left -> continue Down
-       | Right -> continue Up)
-    | c -> failwith ("unexpected char: " ^ String.of_char c))
-  else ()
-;;
-
 let shadow_grid = Array.make_matrix ~dimx:rows ~dimy:cols '.'
 let table = Hashtbl.create (module String)
-
-(* beam (0, 0) ~dir:Right ~seen:table ~shadow:shadow_grid *)
-
 let node_set = NodeSet.create ()
 let node_q = Queue.create ();;
 
 Queue.enqueue node_q { cords = 0, 0; dir = Right };;
-beam_bfs ~queue:node_q ~seen:node_set
+beam_bfs ~queue:node_q ~seen:node_set ~shadow:shadow_grid
 
 let print_grid arr =
   Array.iter arr ~f:(fun row ->
@@ -182,30 +141,13 @@ let print_grid arr =
     printf "\n")
 ;;
 
-let tup_to_string (row, col) = Int.to_string row ^ Int.to_string col
-let set_list = Hash_set.to_list node_set;;
-
-printf "set len: %d\n" (List.length set_list)
-
-let sum =
-  node_set
-  |> Hash_set.to_list
-  |> List.map ~f:(fun n -> tup_to_string n.cords)
-  |> List.dedup_and_sort ~compare:compare_string
-  |> List.length
+let shadow_sum =
+  shadow_grid
+  |> Array.to_sequence
+  |> Sequence.map ~f:Array.to_sequence
+  |> Sequence.concat
+  |> Sequence.fold ~init:0 ~f:(fun acc curr ->
+    if Char.equal '#' curr then acc + 1 else acc)
 ;;
 
-(* print_grid grid *)
-(* print_grid shadow_grid *)
-
-(* let sum = *)
-(*   shadow_grid *)
-(*   |> Array.to_sequence *)
-(*   |> Sequence.map ~f:Array.to_sequence *)
-(*   |> Sequence.concat *)
-(*   |> Sequence.fold ~init:0 ~f:(fun acc curr -> *)
-(*     if Char.equal '#' curr then acc + 1 else acc) *)
-(* ;; *)
-
-printf "rows: %d, cols: %d\n" rows cols;
-printf "sum: %d\n" sum
+printf "shadow sum: %d\n" shadow_sum
