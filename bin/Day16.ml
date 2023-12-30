@@ -23,13 +23,6 @@ let next_cords (row, col) dir =
   | Right -> row, col + 1
 ;;
 
-let cord_key (row, col) dir =
-  let key =
-    Int.to_string row ^ Int.to_string col ^ Sexp.to_string (sexp_of_direction dir)
-  in
-  key
-;;
-
 type node =
   { cords : int * int
   ; dir : direction
