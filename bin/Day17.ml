@@ -18,6 +18,8 @@ let create_adj_matrix () =
   Array.make_matrix ~dimy:dim ~dimx:dim 0
 ;;
 
+let create_vertices () = List.range 0 (rows * cols)
+
 type direction =
   | Up
   | Down
@@ -115,6 +117,49 @@ let print_adj arr =
     printf "\n")
 ;;
 
-let adj = find_adj ();;
+let adj = find_adj ()
 
-print_adj adj
+module IntSet = Hash_set.Make (Int)
+
+let djikstras vertices adj =
+  let source = 0 in
+  let nvertices = List.length vertices in
+  (*initialize queue with all vertices*)
+  let q = IntSet.of_list vertices in
+  (*create distance array and set souce dist to 0*)
+  let dist = Array.create ~len:nvertices Int.max_value in
+  dist.(source) <- 0;
+  (*initialize pre varray with None*)
+  let rec loop () =
+    if Hash_set.is_empty q
+    then ()
+    else (
+      let u =
+        Array.filter_mapi dist ~f:(fun vertex d ->
+          if Hash_set.mem q vertex then Some (vertex, d) else None)
+        |> Array.min_elt ~compare:(fun x y -> compare (snd x) (snd y))
+        |> Option.value_exn
+        |> fst
+      in
+      Hash_set.remove q u;
+      let neighbors =
+        adj.(u)
+        |> Array.filter_mapi ~f:(fun idx value ->
+          if value = 0 || not (Hash_set.mem q idx) then None else Some (idx, value))
+      in
+      Array.iter neighbors ~f:(fun (vertex, distance) ->
+        let alt = dist.(u) + distance in
+        if alt < dist.(vertex) then dist.(vertex) <- alt else ());
+      loop ())
+  in
+  loop ();
+  dist
+;;
+
+let vertices = create_vertices ()
+let adj_matrix = find_adj ()
+let distances = djikstras vertices adj_matrix
+let len = Array.length distances
+let final = distances.(len - 1);;
+
+printf "min path: %d\n" final
