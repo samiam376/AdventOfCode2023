@@ -13,13 +13,6 @@ let cols = Array.length grid.(0)
 let to_1d (row, col) = (row * cols) + col
 let to_2d vertex = vertex / cols, vertex mod cols
 
-let create_adj_matrix () =
-  let dim = rows * cols in
-  Array.make_matrix ~dimy:dim ~dimx:dim 0
-;;
-
-let create_vertices () = List.range 0 (rows * cols)
-
 type direction =
   | Up
   | Down
@@ -28,35 +21,38 @@ type direction =
 [@@deriving hash, sexp, equal, compare]
 
 type cord =
-  { cords : int * int
+  { pos : int * int
   ; dir : direction
+  ; steps : int
+  ; cost : int
   }
 [@@deriving hash, equal, of_sexp, sexp, compare]
 
-module CordSet = Hash_set.Make (struct
-    type t = cord
+type cord_key =
+  { pos : int * int
+  ; dir : direction
+  ; steps : int
+  }
+[@@deriving hash, equal, of_sexp, sexp, compare]
 
-    let equal = equal_cord
-    let hash = hash_cord
-    let t_of_sexp = cord_of_sexp
-    let sexp_of_t = sexp_of_cord
-    let compare = compare_cord
+module CordTbl = Hashtbl.Make (struct
+    type t = cord_key
+
+    let equal = equal_cord_key
+    let hash = hash_cord_key
+    let t_of_sexp = cord_key_of_sexp
+    let sexp_of_t = sexp_of_cord_key
+    let compare = compare_cord_key
   end)
 
 let inbounds (row, col) = row >= 0 && row < rows && col >= 0 && col < cols
 
-let next_direction ~count ~dir =
-  if count = 3
-  then (
-    match dir with
-    | Up | Down -> [ Left; Right ]
-    | Left | Right -> [ Up; Down ])
-  else (
-    match dir with
-    | Up -> [ Up; Left; Right ]
-    | Down -> [ Down; Left; Right ]
-    | Left -> [ Left; Up; Down ]
-    | Right -> [ Right; Up; Down ])
+let next_direction ~dir =
+  match dir with
+  | Up -> [ Up; Left; Right ]
+  | Down -> [ Down; Left; Right ]
+  | Left -> [ Left; Up; Down ]
+  | Right -> [ Right; Up; Down ]
 ;;
 
 let next_cords (row, col) dir =
@@ -71,38 +67,11 @@ let last_node (row, col) = row = rows - 1 && col = cols - 1
 let dir_string dir = string_of_sexp (sexp_of_direction dir)
 
 let get_value cords =
-  let row, col = cords in
-  grid.(row).(col)
-;;
-
-let find_adj () =
-  let adj_matrix = create_adj_matrix () in
-  let seen = CordSet.create () in
-  let rec visit cords ~straight_count =
-    if (not (inbounds cords.cords)) || Hash_set.mem seen cords
-    then ()
-    else if last_node cords.cords
-    then ()
-    else (
-      Hash_set.add seen cords;
-      let starting_vertex = to_1d cords.cords in
-      let directions = next_direction ~count:straight_count ~dir:cords.dir in
-      List.iter directions ~f:(fun next_dir ->
-        let next = next_cords cords.cords next_dir in
-        if inbounds next
-        then (
-          let v = get_value next in
-          let ending_vertex = to_1d next in
-          adj_matrix.(starting_vertex).(ending_vertex) <- v;
-          let next_count =
-            if equal_direction cords.dir next_dir then straight_count + 1 else 1
-          in
-          visit { cords = next; dir = next_dir } ~straight_count:next_count)
-        else ()))
-  in
-  visit { cords = 0, 0; dir = Right } ~straight_count:1;
-  visit { cords = 0, 0; dir = Down } ~straight_count:1;
-  adj_matrix
+  if inbounds cords
+  then (
+    let row, col = cords in
+    Some grid.(row).(col))
+  else None
 ;;
 
 let print_grid arr =
@@ -117,49 +86,50 @@ let print_adj arr =
     printf "\n")
 ;;
 
-let adj = find_adj ()
-
-module IntSet = Hash_set.Make (Int)
-
-let djikstras vertices adj =
-  let source = 0 in
-  let nvertices = List.length vertices in
-  (*initialize queue with all vertices*)
-  let q = IntSet.of_list vertices in
-  (*create distance array and set souce dist to 0*)
-  let dist = Array.create ~len:nvertices Int.max_value in
-  dist.(source) <- 0;
-  (*initialize pre varray with None*)
+let djikstras () =
+  let min_heap = Pairing_heap.create ~cmp:(fun a b -> compare a.cost b.cost) () in
+  let dist = CordTbl.create () in
+  Pairing_heap.add min_heap { pos = 0, 0; dir = Right; steps = 0; cost = 0 };
+  Pairing_heap.add min_heap { pos = 0, 0; dir = Down; steps = 0; cost = 0 };
+  Hashtbl.add_exn dist ~key:{ pos = 0, 0; dir = Right; steps = 0 } ~data:0;
+  Hashtbl.add_exn dist ~key:{ pos = 0, 0; dir = Down; steps = 0 } ~data:0;
   let rec loop () =
-    if Hash_set.is_empty q
-    then ()
-    else (
-      let u =
-        Array.filter_mapi dist ~f:(fun vertex d ->
-          if Hash_set.mem q vertex then Some (vertex, d) else None)
-        |> Array.min_elt ~compare:(fun x y -> compare (snd x) (snd y))
-        |> Option.value_exn
-        |> fst
-      in
-      Hash_set.remove q u;
-      let neighbors =
-        adj.(u)
-        |> Array.filter_mapi ~f:(fun idx value ->
-          if value = 0 || not (Hash_set.mem q idx) then None else Some (idx, value))
-      in
-      Array.iter neighbors ~f:(fun (vertex, distance) ->
-        let alt = dist.(u) + distance in
-        if alt < dist.(vertex) then dist.(vertex) <- alt else ());
-      loop ())
+    match Pairing_heap.pop min_heap with
+    | None -> None
+    | Some u ->
+      if last_node u.pos
+      then Some u.cost
+      else if match Hashtbl.find dist { pos = u.pos; dir = u.dir; steps = u.steps } with
+              | None -> false
+              | Some dist -> dist < u.cost
+      then loop ()
+      else (
+        let neighbors =
+          next_direction ~dir:u.dir
+          |> List.filter_map ~f:(fun d ->
+            let nc = next_cords u.pos d in
+            let next_value = get_value nc in
+            Option.map next_value ~f:(fun cost ->
+              { pos = nc
+              ; dir = d
+              ; cost = u.cost + cost
+              ; steps = (if equal_direction d u.dir then u.steps + 1 else 1)
+              }))
+        in
+        List.iter neighbors ~f:(fun n ->
+          if n.steps > 3
+             ||
+             match Hashtbl.find dist { pos = n.pos; dir = n.dir; steps = n.steps } with
+             | None -> false
+             | Some d -> d < n.cost
+          then ()
+          else (
+            Pairing_heap.add min_heap n;
+            Hashtbl.update dist { pos = n.pos; dir = n.dir; steps = n.steps } ~f:(fun _ ->
+              n.cost)));
+        loop ())
   in
-  loop ();
-  dist
+  loop ()
 ;;
 
-let vertices = create_vertices ()
-let adj_matrix = find_adj ()
-let distances = djikstras vertices adj_matrix
-let len = Array.length distances
-let final = distances.(len - 1);;
-
-printf "min path: %d\n" final
+let m = djikstras () |> Option.value_exn |> printf "value: %d\n"

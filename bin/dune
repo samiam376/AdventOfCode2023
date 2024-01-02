@@ -39,6 +39,6 @@
   Day17)
  (flags
   (:standard -w -32))
- (libraries base stdio core str angstrom domainslib re2 num)
+ (libraries base stdio core core_kernel.pairing_heap str angstrom domainslib re2 num)
  (preprocess
   (pps ppx_jane)))
